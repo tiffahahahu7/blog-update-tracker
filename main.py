@@ -5,8 +5,10 @@ from bs4 import BeautifulSoup
 from notion_client import Client
 from datetime import datetime
 
+# Set up Notion client
 notion = Client(auth=os.getenv("NOTION_TOKEN"))
 database_id = os.getenv("NOTION_DB_ID")
+
 
 def fetch_rows():
     results = []
@@ -24,6 +26,7 @@ def fetch_rows():
 
     return results
 
+
 def update_page(page_id, title, url):
     notion.pages.update(
         page_id=page_id,
@@ -31,9 +34,9 @@ def update_page(page_id, title, url):
             "Status": {"select": {"name": "Updated"}},
             "Last Title": {"rich_text": [{"text": {"content": title}}]},
             "Last URL": {"url": url},
-            "Last Updated": {"date": {"start": datetime.utcnow().isoformat()}}
         }
     )
+
 
 def check_rss(rss_url):
     parsed = feedparser.parse(rss_url)
@@ -41,6 +44,7 @@ def check_rss(rss_url):
         entry = parsed.entries[0]
         return entry.title, entry.link
     return None, None
+
 
 def check_html(url, selector):
     try:
@@ -50,55 +54,65 @@ def check_html(url, selector):
         if element:
             return element.text.strip(), requests.compat.urljoin(url, element.get("href"))
     except Exception as e:
-        print(f"HTML check failed: {e}")
+        print(f"❌ HTML check failed: {e}")
     return None, None
 
-def get_prop(props, key, subkey="text"):
+
+def get_prop(props, key, subkey="content"):
     value = props.get(key)
     if not value:
         return ""
-    if value.get("type") == "rich_text":
+
+    prop_type = value.get("type")
+
+    if prop_type == "title":
+        texts = value.get("title", [])
+        return texts[0]["text"].get(subkey) if texts else ""
+
+    elif prop_type == "rich_text":
         texts = value.get("rich_text", [])
         return texts[0]["text"].get(subkey) if texts else ""
-    elif value.get("type") == "select":
+
+    elif prop_type == "select":
         return value["select"]["name"] if value["select"] else ""
-    elif value.get("type") == "url":
+
+    elif prop_type == "url":
         return value["url"]
+
     return ""
+
 
 def run():
     rows = fetch_rows()
+
     for row in rows:
-        try:
-            props = row["properties"]
-            page_id = row["id"]
-            status = get_prop(props, "Status")
+        props = row["properties"]
+        page_id = row["id"]
 
-            if status.lower().strip() != "default":
-                continue
+        name = get_prop(props, "Name")
+        status = get_prop(props, "Status")
+        rss_url = get_prop(props, "RSS URL")
+        selector = get_prop(props, "Selector")
+        link = get_prop(props, "Link", subkey="url")
+        last_title = (get_prop(props, "Last Title") or "").strip()
+        last_url = (get_prop(props, "Last URL", subkey="url") or "").strip()
 
-            rss_url = get_prop(props, "RSS URL")
-            selector = get_prop(props, "Selector")
-            link = get_prop(props, "Link", subkey="url")
-            last_title = (get_prop(props, "Last Title") or "").strip()
-            last_url = (get_prop(props, "Last URL", subkey="url") or "").strip()
+        if status.lower().strip() != "read":
+            continue
 
-            if rss_url:
-                title, url = check_rss(rss_url)
-            elif link and selector:
-                title, url = check_html(link, selector)
-                print(f"🔍 Selector result for {get_prop(props, 'Name')}:")
-                print(f"    Fetched title: {title}")
-                print(f"    Fetched URL:   {url}")
-            else:
-                continue
+        title, url = None, None
 
-            if (url and url.strip() != last_url.strip()) or (title and title.strip() != last_title.strip()):
-                print(f"✅ Update detected for {get_prop(props, 'Name')}")
-                update_page(page_id, title, url)
-        except Exception as e:
-            print(f"Error processing row: {get_prop(row['properties'], 'Name')}")
-            print(e)
+        if rss_url:
+            title, url = check_rss(rss_url)
+        elif link and selector:
+            title, url = check_html(link, selector)
+        else:
+            print("   ⚠️ No valid RSS or selector found. Skipping.\n")
+            continue
+
+        if (url and url.strip() != last_url) or (title and title.strip() != last_title):
+            update_page(page_id, title, url)
+
 
 if __name__ == "__main__":
     run()
