@@ -28,7 +28,7 @@ def update_page(page_id, title, url):
     notion.pages.update(
         page_id=page_id,
         properties={
-            "Status": {"select": {"name": "updated"}},
+            "Status": {"select": {"name": "Updated"}},
             "Last Title": {"rich_text": [{"text": {"content": title}}]},
             "Last URL": {"url": url},
             "Last Updated": {"date": {"start": datetime.utcnow().isoformat()}}
@@ -73,7 +73,7 @@ def run():
         page_id = row["id"]
         status = get_prop(props, "Status")
 
-        if status != "default":
+        if status.lower().strip() != "default":
             continue
 
         rss_url = get_prop(props, "RSS URL")
