@@ -1,0 +1,4 @@
+notion-client
+feedparser
+beautifulsoup4
+requests

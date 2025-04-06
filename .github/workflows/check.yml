@@ -1,0 +1,25 @@
+name: Blog Tracker
+
+on:
+  schedule:
+    - cron: "0 0 * * *"  # every day at 00:00 UTC
+  workflow_dispatch:       # also allow manual run
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run blog tracker
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
+        run: python main.py
