@@ -69,28 +69,36 @@ def get_prop(props, key, subkey="text"):
 def run():
     rows = fetch_rows()
     for row in rows:
-        props = row["properties"]
-        page_id = row["id"]
-        status = get_prop(props, "Status")
+        try:
+            props = row["properties"]
+            page_id = row["id"]
+            status = get_prop(props, "Status")
 
-        if status.lower().strip() != "default":
-            continue
+            if status.lower().strip() != "default":
+                continue
 
-        rss_url = get_prop(props, "RSS URL")
-        selector = get_prop(props, "Selector")
-        link = get_prop(props, "Link", subkey="url")
-        last_title = get_prop(props, "Last Title")
+            rss_url = get_prop(props, "RSS URL")
+            selector = get_prop(props, "Selector")
+            link = get_prop(props, "Link", subkey="url")
+            last_title = (get_prop(props, "Last Title") or "").strip()
+            last_url = (get_prop(props, "Last URL", subkey="url") or "").strip()
 
-        if rss_url:
-            title, url = check_rss(rss_url)
-        elif link and selector:
-            title, url = check_html(link, selector)
-        else:
-            continue
+            if rss_url:
+                title, url = check_rss(rss_url)
+            elif link and selector:
+                title, url = check_html(link, selector)
+                print(f"🔍 Selector result for {get_prop(props, 'Name')}:")
+                print(f"    Fetched title: {title}")
+                print(f"    Fetched URL:   {url}")
+            else:
+                continue
 
-        if title and title != last_title:
-            print(f"[UPDATED] {get_prop(props, 'Name')} → {title}")
-            update_page(page_id, title, url)
+            if (url and url.strip() != last_url.strip()) or (title and title.strip() != last_title.strip()):
+                print(f"✅ Update detected for {get_prop(props, 'Name')}")
+                update_page(page_id, title, url)
+        except Exception as e:
+            print(f"Error processing row: {get_prop(row['properties'], 'Name')}")
+            print(e)
 
 if __name__ == "__main__":
     run()
