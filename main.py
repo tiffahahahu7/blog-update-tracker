@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 from notion_client import Client
 from urllib.parse import urlparse
+from urllib.parse import urljoin
 
 def normalize_url(url):
     if not urlparse(url).scheme:
@@ -55,10 +56,13 @@ def mark_page_as_error(page_id):
 def check_rss(rss_url):
     try:
         rss_url = normalize_url(rss_url)
-
-        response = requests.get(rss_url, timeout=10)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36"
+        }
+        response = requests.get(rss_url, headers=headers, timeout=10)
         response.raise_for_status()
-        response.encoding = 'utf-8'
+
+        # print(response.text[:500])  # Optional: for debugging raw feed content
 
         parsed = feedparser.parse(response.text)
 
@@ -67,14 +71,17 @@ def check_rss(rss_url):
 
         if parsed.entries:
             entry = parsed.entries[0]
-            return entry.title, entry.link
+            title = entry.title
+            link = entry.link
+            absolute_link = urljoin(rss_url, link)
+
+            return title, absolute_link
 
     except Exception as e:
         print(f"❌ RSS check failed: {e}")
         raise e
 
     return None, None
-
 
 def check_html(url, selector):
     try:
@@ -130,7 +137,7 @@ def run():
         last_title = (get_prop(props, "Last Title") or "").strip()
         last_url = (get_prop(props, "Last URL", subkey="url") or "").strip()
 
-        if status.lower().strip() != "default":
+        if status.lower().strip() not in ["default", "error"]:
             continue
 
         print(f"\n📄 Checking blog: {name}")
@@ -150,7 +157,7 @@ def run():
             print(f"🚨 Marking {name} as Error due to access failure.")
             continue
 
-        if not title or not url:
+        if not title and not url:
             print(f"⚠️ Could not extract article from {name}. Marking as Error.")
             mark_page_as_error(page_id)
             continue
