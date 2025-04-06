@@ -146,7 +146,13 @@ def run():
                 print("⚠️ No valid RSS or selector. Skipping.")
                 continue
         except Exception:
+            mark_page_as_error(page_id)
             print(f"🚨 Marking {name} as Error due to access failure.")
+            continue
+
+        if not title or not url:
+            print(f"⚠️ Could not extract article from {name}. Marking as Error.")
+            mark_page_as_error(page_id)
             continue
 
         if (url and url.strip() != last_url) or (title and title.strip() != last_title):
